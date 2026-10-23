@@ -1,0 +1,74 @@
+# Nama|URL ({} = username)|tipe|argumen
+# tipe: S = status HTTP (200 ada / 404 tidak) | M = body memuat argumen -> TIDAK ada
+#       P = body memuat argumen -> ada | E = body persis sama argumen -> TIDAK ada | L = tautan manual
+GitHub|https://github.com/{}|S|
+GitLab|https://gitlab.com/api/v4/users?username={}|E|[]
+Bitbucket|https://bitbucket.org/{}/|S|
+Codeberg|https://codeberg.org/{}|S|
+SourceForge|https://sourceforge.net/u/{}/|S|
+Launchpad|https://launchpad.net/~{}|S|
+Gitee|https://gitee.com/{}|S|
+Replit|https://replit.com/@{}|S|
+CodePen|https://codepen.io/{}|S|
+LeetCode|https://leetcode.com/{}/|S|
+Kaggle|https://www.kaggle.com/{}|S|
+PyPI|https://pypi.org/user/{}/|S|
+DockerHub|https://hub.docker.com/v2/users/{}/|S|
+Scratch|https://scratch.mit.edu/users/{}/|S|
+Dev.to|https://dev.to/{}|S|
+Hashnode|https://hashnode.com/@{}|S|
+Medium|https://medium.com/@{}|S|
+HackerNews|https://hacker-news.firebaseio.com/v0/user/{}.json|E|null
+Lobsters|https://lobste.rs/u/{}|S|
+Reddit|https://www.reddit.com/user/{}/about.json|S|
+Pastebin|https://pastebin.com/u/{}|S|
+Keybase|https://keybase.io/{}|S|
+Gravatar|https://en.gravatar.com/{}|S|
+About.me|https://about.me/{}|S|
+Linktree|https://linktr.ee/{}|S|
+Behance|https://www.behance.net/{}|S|
+Dribbble|https://dribbble.com/{}|S|
+ArtStation|https://www.artstation.com/{}|S|
+DeviantArt|https://www.deviantart.com/{}|S|
+Flickr|https://www.flickr.com/people/{}/|S|
+500px|https://500px.com/p/{}|S|
+Pinterest|https://www.pinterest.com/{}/|S|
+Imgur|https://imgur.com/user/{}|S|
+Vimeo|https://vimeo.com/{}|S|
+YouTube|https://www.youtube.com/@{}|S|
+SoundCloud|https://soundcloud.com/{}|S|
+Bandcamp|https://bandcamp.com/{}|S|
+Last.fm|https://www.last.fm/user/{}|S|
+Mixcloud|https://www.mixcloud.com/{}/|S|
+Letterboxd|https://letterboxd.com/{}/|S|
+Wattpad|https://www.wattpad.com/user/{}|S|
+Kompasiana|https://www.kompasiana.com/{}|S|
+Tumblr|https://{}.tumblr.com|S|
+WordPress|https://{}.wordpress.com|S|
+Blogger|https://{}.blogspot.com|S|
+Itch.io|https://{}.itch.io|S|
+Gumroad|https://{}.gumroad.com|S|
+Ko-fi|https://ko-fi.com/{}|S|
+BuyMeACoffee|https://www.buymeacoffee.com/{}|S|
+Patreon|https://www.patreon.com/{}|S|
+Disqus|https://disqus.com/by/{}/|S|
+SpeakerDeck|https://speakerdeck.com/{}|S|
+OpenStreetMap|https://www.openstreetmap.org/user/{}|S|
+Wikipedia|https://en.wikipedia.org/w/api.php?action=query&list=users&ususers={}&format=json|M|"missing"
+Steam|https://steamcommunity.com/id/{}|M|The specified profile could not be found
+Chess.com|https://api.chess.com/pub/player/{}|S|
+Lichess|https://lichess.org/api/user/{}|S|
+Duolingo|https://www.duolingo.com/2017-06-30/users?username={}|M|"users":[]
+Mastodon.social|https://mastodon.social/@{}|S|
+Bluesky|https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor={}.bsky.social|S|
+Snapchat|https://www.snapchat.com/add/{}|S|
+Telegram|https://t.me/{}|M|noindex, nofollow
+VK|https://vk.com/{}|S|
+Twitch|https://www.twitch.tv/{}|L|
+Roblox|https://www.roblox.com/user.aspx?username={}|L|
+Instagram|https://www.instagram.com/{}/|L|
+TikTok|https://www.tiktok.com/@{}|L|
+X (Twitter)|https://x.com/{}|L|
+Facebook|https://www.facebook.com/{}|L|
+Threads|https://www.threads.net/@{}|L|
+LinkedIn|https://www.linkedin.com/in/{}|L|
