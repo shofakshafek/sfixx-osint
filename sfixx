@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────
+#  Sfixx OSINT — toolkit Open Source Intelligence (Termux / Linux)
+#  Hanya memakai sumber publik & legal. Gunakan secara bertanggung jawab.
+# ──────────────────────────────────────────────────────────────
+
+# ── lokasi asli script (ikuti symlink) ────────────────────────
+_src="${BASH_SOURCE[0]}"
+while [[ -L $_src ]]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ $_src != /* ]] && _src="$_dir/$_src"
+done
+SFIXX_HOME="$(cd -P "$(dirname "$_src")" && pwd)"
+export SFIXX_HOME
+
+for _a in "$@"; do [[ $_a == --no-color ]] && SFIXX_NO_COLOR=1; done
+if [[ -t 1 ]]; then SFIXX_TTY=1; else SFIXX_TTY=0; fi
+export SFIXX_TTY
+
+# ── muat library, config, modul ───────────────────────────────
+# shellcheck source=/dev/null
+source "$SFIXX_HOME/lib/colors.sh"
+source "$SFIXX_HOME/lib/utils.sh"
+
+SFIXX_CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/sfixx-osint"
+SFIXX_CONF_USER="$SFIXX_CONF_DIR/sfixx.conf"
+source "$SFIXX_HOME/config/sfixx.conf"
+[[ -f $SFIXX_CONF_USER ]] && source "$SFIXX_CONF_USER"
+: "${UA:=$UA_DEFAULT}"
+
+for _m in "$SFIXX_HOME"/modules/*.sh; do source "$_m"; done
+
+# ── direktori sementara & pembersihan ─────────────────────────
+SFIXX_TMP="$(mktemp -d 2>/dev/null)" || SFIXX_TMP=""
+if [[ -z $SFIXX_TMP ]]; then SFIXX_TMP="${TMPDIR:-/tmp}/sfixx.$$"; mkdir -p "$SFIXX_TMP"; fi
+export SFIXX_TMP
+_cleanup() { local p; p="$(jobs -rp 2>/dev/null)"; [[ -n $p ]] && kill $p 2>/dev/null; rm -rf "$SFIXX_TMP"; }
+trap _cleanup EXIT
+trap 'printf "\n"; warn "Dibatalkan."; exit 130' INT TERM
+
+# ── bantuan ───────────────────────────────────────────────────
+usage() {
+  banner
+  cat <<EOF
+
+${C_WHITE}PENGGUNAAN${C_RESET}
+  sfixx [opsi] <perintah> <target>
+  sfixx <target>                deteksi otomatis tipe target
+  sfixx                         menu interaktif
+
+${C_WHITE}PERINTAH${C_RESET}
+  ${C_CYAN}ip${C_RESET} [ip|domain]          IP: geo, ASN, RDAP, port, reputasi
+  ${C_CYAN}email${C_RESET} <email>           DNS, breach, gravatar, reputasi
+  ${C_CYAN}emailgen${C_RESET} <dep> <bel> <domain>  pola alamat email
+  ${C_CYAN}phone${C_RESET} <nomor>           negara, operator, varian, dork
+  ${C_CYAN}wa${C_RESET} <nomor|link>         WhatsApp: tautan, varian, info grup
+  ${C_CYAN}wa group${C_RESET} <kata kunci>   cari link grup WhatsApp publik
+  ${C_CYAN}user${C_RESET} <username>         cek username di 70+ situs
+  ${C_CYAN}domain${C_RESET} <domain>         ringkasan lengkap domain/website
+  ${C_CYAN}whois${C_RESET} <domain|ip>       data registrasi (RDAP/WHOIS)
+  ${C_CYAN}dns${C_RESET} <domain> [tipe…]    A AAAA MX TXT NS SOA CAA + SPF/DMARC
+  ${C_CYAN}sub${C_RESET} <domain>            enumerasi subdomain pasif
+  ${C_CYAN}headers${C_RESET} <url>           HTTP header, keamanan, teknologi
+  ${C_CYAN}ssl${C_RESET} <host[:port]>       sertifikat SSL/TLS
+  ${C_CYAN}wayback${C_RESET} <domain|url>    arsip Wayback Machine
+  ${C_CYAN}url${C_RESET} <url>               URL analyzer + redirect chain
+  ${C_CYAN}github${C_RESET} <user>           profil, repo, email commit publik
+  ${C_CYAN}mac${C_RESET} <mac>               vendor MAC address
+  ${C_CYAN}crypto${C_RESET} <alamat>         alamat Bitcoin / Ethereum
+  ${C_CYAN}geo${C_RESET} <lat,lon|tempat>    geocoding (OpenStreetMap)
+  ${C_CYAN}exif${C_RESET} <file>             metadata foto/dokumen
+  ${C_CYAN}img${C_RESET} <url-gambar>        reverse image search
+  ${C_CYAN}dork${C_RESET} <jenis> <target>   person | email | user | domain | phone
+  ${C_CYAN}sysinfo${C_RESET}                 info perangkat, jaringan, dependensi
+  ${C_CYAN}config${C_RESET}                  edit konfigurasi & API key
+  ${C_CYAN}update${C_RESET}                  perbarui dari GitHub (config aman)
+
+${C_WHITE}OPSI${C_RESET}
+  -s, --save       simpan laporan ke ${REPORT_DIR:-~/sfixx-reports}
+  -o, --open       buka tautan pencarian di browser
+  -v, --verbose    tampilkan detail tambahan
+      --no-color   matikan warna
+  -h, --help       bantuan    --version  versi
+
+${C_WHITE}CONTOH${C_RESET}
+  sfixx ip 8.8.8.8
+  sfixx -s email nama@contoh.com
+  sfixx phone 081234567890
+  sfixx domain example.com
+
+${C_GRAY}Hanya sumber publik & legal. Patuhi hukum yang berlaku (UU ITE / UU PDP).${C_RESET}
+EOF
+}
+
+# ── laporan: jalankan modul, opsional simpan ke file ──────────
+run() {   # run <tag> <fungsi> [argumen…]
+  local tag="$1" fn="$2"; shift 2
+  if (( SAVE )); then
+    if ! mkdir -p "$REPORT_DIR" 2>/dev/null; then
+      warn "Tidak bisa membuat $REPORT_DIR — laporan tidak disimpan"
+      "$fn" "$@"; return
+    fi
+    local raw="$SFIXX_TMP/report.raw" f
+    f="$REPORT_DIR/${tag}_$(safe_name "${1:-self}")_$(date +%Y%m%d_%H%M%S).txt"
+    { "$fn" "$@"; } 2>&1 | tee "$raw"
+    sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$raw" > "$f"
+    echo; ok "Laporan disimpan: $f"
+  else
+    "$fn" "$@"
+  fi
+}
+
+# ── config & update ───────────────────────────────────────────
+cmd_config() {
+  local ed="${EDITOR:-}" c
+  mkdir -p "$SFIXX_CONF_DIR"
+  if [[ ! -f $SFIXX_CONF_USER ]]; then
+    cp "$SFIXX_HOME/config/sfixx.conf" "$SFIXX_CONF_USER"
+    ok "Config pribadi dibuat: $SFIXX_CONF_USER"
+  fi
+  if [[ -z $ed ]]; then for c in nano vim vi; do if have "$c"; then ed="$c"; break; fi; done; fi
+  if [[ -n $ed ]]; then "$ed" "$SFIXX_CONF_USER"
+  else info "Edit file ini secara manual: $SFIXX_CONF_USER"; fi
+}
+
+cmd_update() {
+  have git || { err "git belum terpasang (pkg install git)"; return 1; }
+  [[ -d $SFIXX_HOME/.git ]] || { err "Folder ini bukan hasil git clone — clone ulang repo untuk update."; return 1; }
+  info "Memperbarui dari GitHub (config pribadi di ${SFIXX_CONF_DIR} tidak tersentuh)…"
+  if git -C "$SFIXX_HOME" pull --ff-only; then
+    ok "Update selesai."
+  else
+    err "Update gagal — ada perubahan lokal? Cek: git -C \"$SFIXX_HOME\" status"
+    return 1
+  fi
+}
+
+# ── menu interaktif ───────────────────────────────────────────
+MENU_ITEMS=(
+  "IP OSINT|IP atau domain (kosong = IP kamu)|ip|mod_ip"
+  "Email OSINT|Alamat email|email|mod_email"
+  "Number OSINT (nomor HP)|Nomor telepon (08xx / +62xx / +1xx)|phone|mod_phone"
+  "WhatsApp OSINT|Nomor, link grup, atau 'group kata kunci'|wa|mod_wa"
+  "Username search|Username|user|mod_username"
+  "Domain lengkap|Domain atau URL|domain|mod_domain"
+  "WHOIS / RDAP|Domain atau IP|whois|mod_whois"
+  "DNS lookup|Domain|dns|mod_dns"
+  "Subdomain|Domain|sub|mod_subdomain"
+  "HTTP headers & teknologi|URL atau domain|headers|mod_headers"
+  "SSL / TLS|Host (mis. example.com)|ssl|mod_ssl"
+  "Wayback Machine|Domain atau URL|wayback|mod_wayback"
+  "URL analyzer|URL|url|mod_url"
+  "GitHub OSINT|Username GitHub|github|mod_github"
+  "MAC vendor|Alamat MAC|mac|mod_mac"
+  "Crypto address|Alamat BTC / ETH|crypto|mod_crypto"
+  "Geo / koordinat|lat,lon atau nama tempat|geo|mod_geo"
+  "EXIF / metadata|Path file|exif|mod_exif"
+  "Reverse image|URL gambar|img|mod_img"
+  "Dork generator|jenis + target (mis. person Budi Santoso)|dork|mod_dork"
+  "Auto detect|Target apa saja|auto|mod_auto"
+  "Info sistem|-|sysinfo|mod_sysinfo"
+)
+
+menu() {
+  local i n=${#MENU_ITEMS[@]} choice label prompt tag fn target
+  local -a targs
+  while true; do
+    (( SFIXX_TTY )) && have clear && clear
+    banner; echo
+    for (( i=0; i<n; i++ )); do
+      IFS='|' read -r label _ <<<"${MENU_ITEMS[i]}"
+      printf '  %s[%02d]%s %s\n' "$C_CYAN" $((i+1)) "$C_RESET" "$label"
+    done
+    printf '  %s[ c]%s Pengaturan / API key\n  %s[ 0]%s Keluar\n\n' "$C_CYAN" "$C_RESET" "$C_CYAN" "$C_RESET"
+    read -rp "${C_GREEN}sfixx${C_RESET} ❯ " choice || break
+    case $choice in
+      0|q|Q|exit|keluar) break ;;
+      c|C) cmd_config; continue ;;
+      ''|*[!0-9]*) warn "Pilihan tidak valid"; sleep 1; continue ;;
+    esac
+    (( choice >= 1 && choice <= n )) || { warn "Pilihan tidak valid"; sleep 1; continue; }
+    IFS='|' read -r label prompt tag fn <<<"${MENU_ITEMS[choice-1]}"
+    target=""
+    if [[ $prompt != "-" ]]; then read -rp "  ${prompt}: " target || break; fi
+    echo
+    case $tag in
+      dork|wa|dns) read -ra targs <<<"$target"; run "$tag" "$fn" "${targs[@]}" ;;
+      sysinfo)     run "$tag" "$fn" ;;
+      *)           run "$tag" "$fn" "$target" ;;
+    esac
+    echo; read -rp "  Tekan Enter untuk kembali ke menu…" _ || break
+  done
+}
+
+# ── parsing opsi ──────────────────────────────────────────────
+SAVE="${AUTO_SAVE:-0}"; VERBOSE=0
+args=()
+while (( $# )); do
+  case $1 in
+    -s|--save)    SAVE=1 ;;
+    -o|--open)    OPEN_BROWSER=1 ;;
+    -v|--verbose) VERBOSE=1 ;;
+    --no-color)   ;;
+    -h|--help)    args=(help); break ;;
+    --version)    args=(version); break ;;
+    --)           shift; args+=("$@"); break ;;
+    *)            args+=("$1") ;;
+  esac
+  shift
+done
+set -- "${args[@]}"
+export VERBOSE OPEN_BROWSER
+
+cmd="${1:-menu}"; (( $# )) && shift
+
+case $cmd in
+  help|version|config|update) ;;
+  *) need_cmd curl jq || exit 1 ;;
+esac
+
+case $cmd in
+  menu)                       menu ;;
+  ip)                         run ip mod_ip "$@" ;;
+  email|mail)                 run email mod_email "$@" ;;
+  emailgen|mailgen)           run emailgen mod_emailgen "$@" ;;
+  phone|number|nomor|hp)      run phone mod_phone "$@" ;;
+  wa|whatsapp)                run wa mod_wa "$@" ;;
+  user|username|u)            run user mod_username "$@" ;;
+  domain|web|site)            run domain mod_domain "$@" ;;
+  whois)                      run whois mod_whois "$@" ;;
+  dns)                        run dns mod_dns "$@" ;;
+  sub|subs|subdomain)         run sub mod_subdomain "$@" ;;
+  headers|header|hdr)         run headers mod_headers "$@" ;;
+  ssl|tls|cert)               run ssl mod_ssl "$@" ;;
+  wayback|archive)            run wayback mod_wayback "$@" ;;
+  url|link|unshorten|expand)  run url mod_url "$@" ;;
+  github|gh)                  run github mod_github "$@" ;;
+  mac)                        run mac mod_mac "$@" ;;
+  crypto|btc|eth)             run crypto mod_crypto "$@" ;;
+  geo|map)                    run geo mod_geo "$@" ;;
+  exif|meta|metadata)         run exif mod_exif "$@" ;;
+  img|image|imgsearch)        run img mod_img "$@" ;;
+  dork)                       run dork mod_dork "$@" ;;
+  sysinfo|system|sys)         run sysinfo mod_sysinfo "$@" ;;
+  auto|scan)                  run auto mod_auto "$@" ;;
+  config)                     cmd_config ;;
+  update)                     cmd_update ;;
+  version)                    echo "sfixx-osint v${SFIXX_VERSION}" ;;
+  help)                       usage ;;
+  *)                          run auto mod_auto "$cmd" "$@" ;;
+esac

@@ -1,0 +1,16 @@
+# Dependensi Sfixx OSINT (dipasang otomatis oleh install.sh)
+#
+# WAJIB
+curl
+jq
+git          # hanya untuk install via git clone & `sfixx update`
+#
+# OPSIONAL (fitur terkait akan dilewati bila tidak ada)
+# Termux          : dnsutils openssl-tool whois exiftool file
+# Debian/Ubuntu   : dnsutils openssl whois libimage-exiftool-perl file
+# Arch            : bind openssl whois perl-image-exiftool file
+dnsutils     # dig (fallback DNS)
+openssl      # modul ssl
+whois        # fallback WHOIS untuk TLD tanpa RDAP
+exiftool     # modul exif
+file         # deteksi tipe file
