@@ -66,7 +66,6 @@ $LN -sf "$DIR/sfixx" "$BIN/sfixx-osint"
 good "Perintah terpasang: sfixx  (alias: sfixx-osint) → $BIN"
 case ":$PATH:" in *":$BIN:"*) ;; *) warn "Tambahkan ke PATH: export PATH=\"$BIN:\$PATH\"";; esac
 
-# ── config pribadi (tidak ditimpa saat update) ──
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/sfixx-osint"
 mkdir -p "$CONF"
 [[ -f $CONF/sfixx.conf ]] || cp "$DIR/config/sfixx.conf" "$CONF/sfixx.conf"
